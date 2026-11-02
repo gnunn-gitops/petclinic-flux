@@ -23,7 +23,7 @@ spec:
       #         - petclinic
       steps:
         - setWeight: 20
-        - pause: 30s
+        - pause: { duration: 30s }
         # - analysis:
         #     templates:
         #       - templateName: smoke-test
