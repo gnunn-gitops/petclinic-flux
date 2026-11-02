@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   labels:
-    timestamp: 20261102153752
+    timestamp: "20261102153753"
   name: petclinic
 spec:
   progressDeadlineSeconds: 600
