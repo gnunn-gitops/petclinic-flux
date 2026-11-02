@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   labels:
-    signer: ocplab
+    timestamp: 20261102153752
   name: petclinic
 spec:
   progressDeadlineSeconds: 600
