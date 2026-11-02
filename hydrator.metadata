@@ -1,0 +1,8 @@
+{
+  "drySha": "3026fb976c8b302d541cd0064d935c7fbce9b047",
+  "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
+  "author": "Gerald Nunn <gnunn@gnunn-5cd5148931.rmtcabc.csb>",
+  "date": "2026-11-02T13:46:43-07:00",
+  "subject": "Clarify gitignore negation in hydrated-branch ignore rules\n",
+  "body": "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n\n"
+}
