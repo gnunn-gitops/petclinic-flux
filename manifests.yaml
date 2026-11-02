@@ -192,8 +192,8 @@ metadata:
     app.kubernetes.io/name: petclinic
     app.kubernetes.io/part-of: petclinic
     app.openshift.io/runtime-icon: quarkus
-    signer: ocplab
     test-trigger: "20261001135204"
+    timestamp: 20261102153752
   name: petclinic
   namespace: petclinic-dev
 spec:
