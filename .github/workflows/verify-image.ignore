@@ -1,0 +1,52 @@
+# Enable when Pipelines 1.24 is out where Chains supports OCI 1.1 Referrer/Bundle support
+name: Verify Image
+on:
+  pull_request:
+    branches:
+      - "environment/prod"
+      - "environment/stage"
+      - "environment/dev"
+      - "main"
+
+  push:
+    branches:
+      - "main"
+
+jobs:
+  verify-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+      - name: Code Checkout
+        uses: actions/checkout@v7
+      - name: Get Image
+        id: get-image
+        run: |
+          export PETCLINIC_IMAGE_URL=$(kustomize build apps/petclinic/base | yq '. | select(.kind == "Rollout" and .metadata.name == "petclinic") | .spec.template.spec.containers[].image' | tr -d '"')
+          PETCLINIC_TAG=$(echo -n "${PETCLINIC_IMAGE_URL##*:}")
+          echo "Testing image: $PETCLINIC_IMAGE_URL"
+          echo "Testing tag: $PETCLINIC_TAG"
+          echo -n "petclinic_tag=$PETCLINIC_TAG" >> $GITHUB_OUTPUT
+      - name: Verify Image Identity
+        run: |
+          cd .github/repository
+          echo "$REPOSITORY_CHECKSUM repository.tar.gz" | sha256sum --check - || echo "Archive integrity compromised, don't continue with the procedure\!"
+
+          tar -xzvf repository.tar.gz
+
+          export IMAGE="quay.io/gnunn/quarkus-petclinic:${{ steps.get-image.outputs.petclinic_tag }}"
+          export SIGNING_EMAIL_ADDR="tekton-builder@rhdp.com"
+          export SIGNING_OIDC_ISSUER="https://sso.ocplab.com/realms/ocplab"
+          export TRUSTED_ROOT=$(pwd)/repository/targets/*.trusted_root.json
+
+          cosign version
+
+          ls .
+
+          ls ${TRUSTED_ROOT}
+
+          cosign verify --certificate-identity="${SIGNING_EMAIL_ADDR}" --certificate-oidc-issuer="${SIGNING_OIDC_ISSUER}" --trusted-root ${TRUSTED_ROOT} "${IMAGE}"
+
+        env:
+          REPOSITORY_CHECKSUM: ${{ secrets.REPOSITORY_CHECKSUM }}
