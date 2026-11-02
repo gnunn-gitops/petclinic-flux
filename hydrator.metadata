@@ -1,8 +1,8 @@
 {
-  "drySha": "3026fb976c8b302d541cd0064d935c7fbce9b047",
+  "drySha": "6bdecf4e4cf2ae33597b240ee7d48e3698a95cdd",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
   "author": "Gerald Nunn <gnunn@gnunn-5cd5148931.rmtcabc.csb>",
-  "date": "2026-11-02T13:46:43-07:00",
-  "subject": "Clarify gitignore negation in hydrated-branch ignore rules\n",
-  "body": "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n\n"
+  "date": "2026-11-02T14:54:27-07:00",
+  "subject": "Fix pause step\n",
+  "body": "\n"
 }
