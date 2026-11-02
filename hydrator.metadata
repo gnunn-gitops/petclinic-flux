@@ -1,8 +1,8 @@
 {
-  "drySha": "f90c756039caeeee1f3f833c107002e8bf3e89b7",
+  "drySha": "187730f41f528e62520b10429870149abcfed751",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
   "author": "gnunn1 <gnunn@redhat.com>",
-  "date": "2026-11-02T15:38:24-07:00",
-  "subject": "Force hydration\n",
+  "date": "2026-11-02T15:42:36-07:00",
+  "subject": "Make label a string\n",
   "body": "\n"
 }

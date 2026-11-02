@@ -193,7 +193,7 @@ metadata:
     app.kubernetes.io/part-of: petclinic
     app.openshift.io/runtime-icon: quarkus
     test-trigger: "20261001135204"
-    timestamp: 20261102153752
+    timestamp: "20261102153753"
   name: petclinic
   namespace: petclinic-stage
 spec:
