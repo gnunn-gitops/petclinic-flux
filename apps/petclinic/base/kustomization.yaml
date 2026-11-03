@@ -21,3 +21,12 @@ images:
   - name: quay.io/gnunn/quarkus-petclinic
     newName: quay.io/gnunn/quarkus-petclinic
     newTag: 6a3ac01-3LNkPZAW5hUnralCFWRic2zcJeT
+
+# patches:
+#   - patch: |
+#       - op: replace
+#         path: /spec/replicas
+#         value: 5
+#     target:
+#       kind: Rollout
+#       name: petclinic
