@@ -11,4 +11,6 @@ resources:
   - git-repository.yaml
   - github-checks-commit-status.yaml
   - dependency-commit-status.yaml
+  - flux-reader-rbac.yaml
+  - flux-health-commit-status.yaml
   - promotion-strategy.yaml

@@ -5,6 +5,14 @@ metadata:
 spec:
   # proposedCommitStatuses:
   #   - key: github-required-checks
+  #
+  # Applies to every environment: a commit is only "live and good" once Flux has
+  # applied that exact hydrated SHA and reported the Kustomization Ready, which
+  # (via the health checks on the Kustomizations) means the Argo Rollout reached
+  # phase Healthy. DependentsSuccessfulCommitStatus below then holds the next
+  # environment's promotion until the previous one satisfies this.
+  activeCommitStatuses:
+    - key: flux-health
   environments:
     - autoMerge: true
       branch: environment/dev

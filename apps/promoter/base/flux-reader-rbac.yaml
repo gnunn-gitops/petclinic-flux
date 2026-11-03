@@ -1,0 +1,55 @@
+# Credentials used by flux-health-commit-status.yaml to read the Flux
+# Kustomizations from the Kubernetes API.
+#
+# The promoter controller reads this Secret itself (its ClusterRole already
+# grants get on secrets cluster-wide) and sends the token as
+# "Authorization: Bearer <token>". It never runs as this ServiceAccount — the
+# ServiceAccount exists only to mint a token with the narrowest useful scope.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flux-kustomization-reader
+---
+# A long-lived token. Kubernetes stopped auto-creating these, but the token
+# controller still populates a Secret that is created explicitly with this type
+# and annotation. The "token" key is the one BearerAuth looks for.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: flux-kustomization-reader
+  annotations:
+    kubernetes.io/service-account.name: flux-kustomization-reader
+type: kubernetes.io/service-account-token
+---
+# Scoped as tightly as RBAC allows: get (no list, no watch) on exactly the three
+# Kustomizations being gated. resourceNames is used instead of a namespaced Role
+# because the Flux Kustomization applying this directory sets a targetNamespace,
+# which would relocate a Role/RoleBinding out of flux-system.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: petclinic-flux-kustomization-reader
+rules:
+  - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+    resources:
+      - kustomizations
+    resourceNames:
+      - petclinic-dev
+      - petclinic-stage
+      - petclinic-prod
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: petclinic-flux-kustomization-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: petclinic-flux-kustomization-reader
+subjects:
+  - kind: ServiceAccount
+    name: flux-kustomization-reader
+    namespace: petclinic-promoter

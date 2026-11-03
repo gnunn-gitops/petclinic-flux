@@ -1,0 +1,53 @@
+# One-time patch for the GitOps Promoter controller. NOT part of
+# apps/promoter/base — the controller is installed out-of-band with
+# `kubectl apply -k`, not by Flux, so this has to be applied by hand and
+# re-applied after a promoter upgrade/reinstall.
+#
+# Apply with:
+#   oc patch deployment promoter-controller-manager -n promoter-system \
+#     --patch-file apps/promoter/controller-ca-trust-patch.yaml
+#
+# WHY THIS IS NEEDED
+#
+# flux-health-commit-status.yaml calls https://kubernetes.default.svc. That
+# endpoint is served with a certificate signed by
+# "CN=kube-apiserver-service-network-signer,OU=openshift", which is not in any
+# public trust store, so the controller's default HTTP client rejects it.
+#
+# WebRequestCommitStatus cannot solve this on its own: spec.httpRequest
+# .authentication is AtMostOneOf=basic;bearer;oauth2;tls;scm, so a bearer token
+# cannot be combined with a custom CA, and the tls option requires a client
+# certificate (tls.crt/tls.key) that we do not have.
+#
+# WHY SSL_CERT_DIR AND NOT SSL_CERT_FILE
+#
+# The promoter has explicit handling for SSL_CERT_FILE that builds a brand new
+# root pool from that one file and installs it on http.DefaultTransport — it
+# *replaces* the public CAs, which would break the controller's GitHub calls.
+# SSL_CERT_DIR is left to Go's own loader, which still reads the default bundle
+# file (/etc/ssl/certs/ca-certificates.crt on the golang:1.27 base image) and
+# then appends every certificate found in the listed directories. The default
+# directories are named explicitly below because setting SSL_CERT_DIR replaces
+# Go's built-in directory list.
+#
+# kube-root-ca.crt is published by Kubernetes into every namespace and contains
+# the apiserver signers.
+spec:
+  template:
+    spec:
+      volumes:
+        - name: kube-root-ca
+          configMap:
+            name: kube-root-ca.crt
+            items:
+              - key: ca.crt
+                path: kube-root-ca.crt
+      containers:
+        - name: manager
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/ssl/certs:/etc/pki/tls/certs:/etc/kube-ca
+          volumeMounts:
+            - name: kube-root-ca
+              mountPath: /etc/kube-ca
+              readOnly: true

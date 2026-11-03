@@ -1,0 +1,184 @@
+# Active commit status: gate each promotion on Flux having actually applied the
+# promoted commit AND reported it healthy.
+#
+# Flux has no HTTP status API, so this reads the Kustomization object straight
+# from the Kubernetes API. Two things are checked, and the second is the one
+# that matters:
+#
+#   1. The Ready condition is True (with the health checks added to the
+#      Kustomizations, Ready=True means the petclinic Argo Rollout reached
+#      phase Healthy, not merely that the YAML applied cleanly).
+#   2. status.lastAppliedRevision equals "<branch>@sha1:<active hydrated sha>".
+#
+# Without (2) the gate would pass on a stale Healthy left over from the previous
+# revision and promote before Flux had even fetched the new commit.
+#
+# Because this is an *active* commit status, DependentsSuccessfulCommitStatus
+# (the PromotionStrategy's orderCommitStatusRef) will not let an environment
+# promote until the environment before it is successful for what is live on its
+# active branch — so dev must be applied and healthy before stage opens, and
+# stage before prod.
+#
+# PREREQUISITE: the promoter controller must trust the cluster CA before it can
+# call https://kubernetes.default.svc. See apps/promoter/README.md.
+#
+# NOTE: expr has no comment syntax ('#' is its pointer operator), so the notes
+# on each expression below live in YAML comments outside the literal blocks.
+apiVersion: promoter.argoproj.io/v1alpha1
+kind: WebRequestCommitStatus
+metadata:
+  name: flux-health
+spec:
+  promotionStrategyRef:
+    name: petclinic
+  key: flux-health
+  # Report on the commit that is live on the environment branch, not the one
+  # waiting in a PR. Flux can only be healthy for something it has merged.
+  reportOn: active
+
+  descriptionTemplate: >-
+    {{ if .SuccessOutput }}{{ index .SuccessOutput "summary" }}{{ else }}Waiting for Flux to apply this commit{{ end }}
+
+  httpRequest:
+    # environment/dev -> petclinic-dev, etc. The Kustomizations live in
+    # flux-system; targetNamespace on them only moves the workloads.
+    urlTemplate: >-
+      https://kubernetes.default.svc/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/flux-system/kustomizations/petclinic-{{ trimPrefix "environment/" .Branch }}
+    methodTemplate: GET
+    headerTemplates:
+      Accept: "application/json"
+    authentication:
+      # ServiceAccount token with get on exactly these three Kustomizations.
+      # See flux-reader-rbac.yaml.
+      bearer:
+        secretRef:
+          name: flux-kustomization-reader
+    timeout: 30s
+
+  success:
+    when:
+      # Notes on the expression below:
+      #
+      #   want         Flux revision format, verified against a live object:
+      #                environment/dev@sha1:e9d41a9c1f99ab4552f9f286183d05bd8c9accf5
+      #   message      truncated because GitHub caps commit status descriptions
+      #                at 140 characters
+      #   specCurrent  guards against reading a status the Flux controller has
+      #                not caught up to after a spec change
+      #   waiting      Ready=False for these reasons means "not there yet", not
+      #                "broken": the source has not been fetched, or a
+      #                dependency is still settling. Everything else
+      #                (HealthCheckFailed, ReconciliationFailed, BuildFailed,
+      #                PruneFailed, ...) is a real failure worth short-
+      #                circuiting the promotion for.
+      #   failed       only fails on the commit being promoted; if Flux is still
+      #                reconciling an older revision, a failure there is not
+      #                this promotion's problem
+      variables:
+        expression: |
+          let env = find(PromotionStrategy.Status.Environments, {.Branch == Branch});
+          let activeSha = env?.Active?.Hydrated?.Sha ?? "";
+          let shortSha = activeSha[:7];
+          let want = activeSha == "" ? "" : Branch + "@sha1:" + activeSha;
+
+          let code = Response == nil ? 0 : Response.StatusCode;
+          let body = Response == nil ? nil : Response.Body;
+          let st = body?.status;
+          let ready = find(st?.conditions ?? [], {.type == "Ready"});
+          let readyStatus = ready?.status ?? "";
+          let reason = ready?.reason ?? "";
+          let rawMessage = ready?.message ?? "";
+          let message = len(rawMessage) > 80 ? rawMessage[:80] + "..." : rawMessage;
+          let applied = st?.lastAppliedRevision ?? "";
+          let attempted = st?.lastAttemptedRevision ?? "";
+          let specCurrent = (st?.observedGeneration ?? -1) == (body?.metadata?.generation ?? 0);
+
+          let httpOk = code == 200;
+          let waiting = ["Progressing", "DependencyNotReady", "ArtifactFailed"];
+
+          let ok = httpOk && want != "" && specCurrent &&
+                   readyStatus == "True" && applied == want;
+
+          let failed = httpOk && want != "" && specCurrent &&
+                       readyStatus == "False" && attempted == want &&
+                       !(reason in waiting);
+
+          {
+            activeSha: activeSha,
+            shortSha: shortSha,
+            want: want,
+            code: code,
+            kustomization: body?.metadata?.name ?? "",
+            readyStatus: readyStatus,
+            reason: reason,
+            message: message,
+            applied: applied,
+            attempted: attempted,
+            specCurrent: specCurrent,
+            ok: ok,
+            failed: failed,
+            summary:
+              code == 0 ? "Waiting for the next Flux Kustomization check" :
+              code == 404 ? "Flux Kustomization not found in flux-system" :
+              (code == 401 || code == 403) ? "Not authorized to read the Flux Kustomization (HTTP " + string(code) + ")" :
+              !httpOk ? "Kubernetes API returned HTTP " + string(code) :
+              want == "" ? "Waiting for an active hydrated commit" :
+              ok ? "Flux applied " + shortSha + " and reported it healthy" :
+              failed ? "Flux failed on " + shortSha + ": " + reason + " - " + message :
+              !specCurrent ? "Flux has not observed the latest Kustomization spec yet" :
+              attempted == want ? "Flux is applying " + shortSha + ": " + reason + " - " + message :
+              "Flux has not picked up " + shortSha + " yet",
+          }
+
+      # Carry-forward: this runs every reconcile, including ones with no HTTP
+      # response, so Response must be guarded. On the very first reconcile Phase
+      # is "", which the controller reads as pending.
+      expression: |
+        if Response == nil {
+          { "phase": Phase }
+        } else {
+          if Variables.ok {
+            { "phase": "success" }
+          } else {
+            if Variables.failed {
+              { "phase": "failure" }
+            } else {
+              { "phase": "pending" }
+            }
+          }
+        }
+
+      # Keeps the description stable across carry-forward reconciles, and leaves
+      # the raw comparison inputs in status for debugging.
+      output:
+        expression: |
+          let fresh = {
+            sha: Variables.activeSha,
+            summary: "Waiting for Flux to apply this commit",
+            ok: false
+          };
+          Response == nil
+            ? ((SuccessOutput != nil && (SuccessOutput.sha ?? "") == Variables.activeSha) ? SuccessOutput : fresh)
+            : {
+                sha: Variables.activeSha,
+                kustomization: Variables.kustomization,
+                summary: Variables.summary,
+                expectedRevision: Variables.want,
+                appliedRevision: Variables.applied,
+                attemptedRevision: Variables.attempted,
+                readyStatus: Variables.readyStatus,
+                reason: Variables.reason,
+                message: Variables.message,
+                specCurrent: Variables.specCurrent,
+                statusCode: Variables.code,
+                ok: Variables.ok,
+                failed: Variables.failed
+              }
+
+  mode:
+    context: environments
+    # Polling rather than trigger: an active commit status has to keep watching,
+    # because the deployment can go unhealthy after it was first verified. The
+    # proposed-SHA polling short-circuit does not apply to reportOn: active.
+    polling:
+      interval: 30s

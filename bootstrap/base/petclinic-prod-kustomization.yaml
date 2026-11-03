@@ -30,7 +30,7 @@ metadata:
 spec:
   interval: 10m
   retryInterval: 1m
-  timeout: 5m
+  timeout: 15m
   prune: true
   wait: false
   sourceRef:
@@ -38,3 +38,21 @@ spec:
     name: petclinic-prod
   path: ./
   targetNamespace: petclinic-prod
+  healthChecks:
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      name: petclinic
+      namespace: petclinic-prod
+  # Rollout is a custom resource that kstatus cannot evaluate on its own, so
+  # the readiness rules are supplied as CEL expressions. status.phase is only
+  # meaningful once the controller has observed the applied spec, and on a
+  # Rollout status.observedGeneration is a string, hence the conversion.
+  healthCheckExprs:
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      inProgress: >-
+        !has(status.observedGeneration) ||
+        status.observedGeneration != string(metadata.generation) ||
+        (has(status.phase) && status.phase in ['Progressing', 'Paused'])
+      failed: has(status.phase) && status.phase == 'Degraded'
+      current: has(status.phase) && status.phase == 'Healthy'
