@@ -210,7 +210,7 @@ spec:
       steps:
       - setWeight: 20
       - pause:
-          duration: 30s
+          duration: 5s
       - setWeight: 100
   template:
     metadata:
