@@ -11,8 +11,8 @@ resources:
 # patches:
 #   - patch: |
 #       - op: replace
-#         path: /spec/strategy/canary/steps/1/analysis/args/2/value
-#         value: petclinic-canary-petclinic-prod.apps.home.ocplab.com
+#         path: /spec/replicas
+#         value: 5
 #     target:
 #       kind: Rollout
 #       name: petclinic
