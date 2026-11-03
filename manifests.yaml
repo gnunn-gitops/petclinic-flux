@@ -206,7 +206,6 @@ spec:
   strategy:
     canary:
       canaryService: petclinic-canary
-      dynamicStableScale: true
       stableService: petclinic-stable
       steps:
       - setWeight: 20

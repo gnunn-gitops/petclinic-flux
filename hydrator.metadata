@@ -1,8 +1,8 @@
 {
-  "drySha": "187730f41f528e62520b10429870149abcfed751",
+  "drySha": "d348fef104b9699f4c31af610de090cba5bcd066",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
   "author": "gnunn1 <gnunn@redhat.com>",
-  "date": "2026-11-02T15:42:36-07:00",
-  "subject": "Make label a string\n",
+  "date": "2026-11-03T12:05:07-07:00",
+  "subject": "Disable dynamic scaling since we are not using traffic routing\n",
   "body": "\n"
 }
