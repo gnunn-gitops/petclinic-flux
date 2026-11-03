@@ -1,8 +1,8 @@
 {
-  "drySha": "f8f7bddfade1c066defcde7e167ebb4e04525c06",
+  "drySha": "c135e09eca7e345388e6b9f7aaffe9913f7911aa",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
-  "author": "Gerald Nunn <gnunn1@users.noreply.github.com>",
-  "date": "2026-11-03T13:31:30-07:00",
-  "subject": "Update image tag for quarkus-petclinic\n",
+  "author": "gnunn1 <gnunn@redhat.com>",
+  "date": "2026-11-03T13:43:55-07:00",
+  "subject": "Reduce pause time to 5 seconds\n",
   "body": "\n"
 }
