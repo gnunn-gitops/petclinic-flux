@@ -1,8 +1,8 @@
 {
-  "drySha": "d348fef104b9699f4c31af610de090cba5bcd066",
+  "drySha": "f8f7bddfade1c066defcde7e167ebb4e04525c06",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
-  "author": "gnunn1 <gnunn@redhat.com>",
-  "date": "2026-11-03T12:05:07-07:00",
-  "subject": "Disable dynamic scaling since we are not using traffic routing\n",
+  "author": "Gerald Nunn <gnunn1@users.noreply.github.com>",
+  "date": "2026-11-03T13:31:30-07:00",
+  "subject": "Update image tag for quarkus-petclinic\n",
   "body": "\n"
 }
