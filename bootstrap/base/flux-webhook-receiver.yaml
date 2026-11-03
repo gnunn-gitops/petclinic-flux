@@ -1,0 +1,72 @@
+# GitHub -> Flux push notifications.
+#
+# Without this, source-controller only notices a commit on its next poll, so a
+# change waits up to the GitRepository interval (1m) before Flux even fetches
+# it. With it, GitHub calls the cluster on every push and Flux reconciles
+# immediately. The polling interval stays as the fallback for missed or failed
+# deliveries — the webhook is an optimisation, not a replacement.
+#
+# All four GitRepositories are listed because GitHub sends one hook for the
+# whole repository. The Receiver does not filter by branch, so a push to any
+# branch nudges all four sources; source-controller then no-ops on the ones
+# whose branch did not move. That is cheap and avoids needing four separate
+# webhooks.
+#
+# SETUP (both steps are out-of-band — see bootstrap/README.md):
+#   1. Create the HMAC token Secret (it is deliberately not in git).
+#   2. Register the webhook in GitHub using the Route host below and the
+#      path from `kubectl -n flux-system get receiver petclinic-github
+#      -o jsonpath='{.status.webhookPath}'`.
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Receiver
+metadata:
+  name: petclinic-github
+  labels:
+    app: petclinic
+spec:
+  type: github
+  # ping lets GitHub's "Recent Deliveries" test succeed, which is the quickest
+  # way to prove the Route, TLS and shared secret all line up.
+  events:
+    - ping
+    - push
+  secretRef:
+    name: flux-webhook-token
+  resources:
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: petclinic
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: petclinic-dev
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: petclinic-stage
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: petclinic-prod
+---
+# GitHub has to reach notification-controller from the internet. Edge
+# termination uses the ingress router's wildcard certificate, which on this
+# cluster is issued by a public CA — GitHub rejects self-signed certificates
+# unless SSL verification is disabled on the hook, so this matters.
+#
+# The host is left unset so OpenShift assigns
+# flux-webhook-flux-system.<ingress domain>. The cluster domain is not
+# hardcoded here; read the assigned host back with `oc get route`.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: flux-webhook
+  labels:
+    app: petclinic
+spec:
+  to:
+    kind: Service
+    name: webhook-receiver
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

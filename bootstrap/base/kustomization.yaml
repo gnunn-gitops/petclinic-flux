@@ -5,6 +5,7 @@ namespace: flux-system
 
 resources:
   - petclinic-gitrepository.yaml
+  - flux-webhook-receiver.yaml
   - petclinic-ci-kustomization.yaml
   - petclinic-promoter-kustomization.yaml
   - petclinic-dev-kustomization.yaml
