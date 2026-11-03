@@ -64,7 +64,13 @@ spec:
       #   message      truncated because GitHub caps commit status descriptions
       #                at 140 characters
       #   specCurrent  guards against reading a status the Flux controller has
-      #                not caught up to after a spec change
+      #                not caught up to after a spec change. This reads the Ready
+      #                *condition's* observedGeneration, not the top-level
+      #                status.observedGeneration: Flux only advances the latter
+      #                on a successful reconcile, so a Kustomization that is
+      #                failing its health checks leaves it pinned at the last
+      #                good generation forever. Using it here masked every
+      #                failure as "pending".
       #   waiting      Ready=False for these reasons means "not there yet", not
       #                "broken": the source has not been fetched, or a
       #                dependency is still settling. Everything else
@@ -91,7 +97,7 @@ spec:
           let message = len(rawMessage) > 80 ? rawMessage[:80] + "..." : rawMessage;
           let applied = st?.lastAppliedRevision ?? "";
           let attempted = st?.lastAttemptedRevision ?? "";
-          let specCurrent = (st?.observedGeneration ?? -1) == (body?.metadata?.generation ?? 0);
+          let specCurrent = (ready?.observedGeneration ?? -1) == (body?.metadata?.generation ?? 0);
 
           let httpOk = code == 200;
           let waiting = ["Progressing", "DependencyNotReady", "ArtifactFailed"];

@@ -13,10 +13,18 @@ metadata:
 # A long-lived token. Kubernetes stopped auto-creating these, but the token
 # controller still populates a Secret that is created explicitly with this type
 # and annotation. The "token" key is the one BearerAuth looks for.
+#
+# The access label is required, not cosmetic: the promoter refuses to read a
+# Secret referenced by httpRequest.authentication without it, because it sends
+# those credentials to a URL the WebRequestCommitStatus author controls. Without
+# it the controller fails with "is not opted in for WebRequestCommitStatus
+# authentication" and never publishes a CommitStatus at all.
 apiVersion: v1
 kind: Secret
 metadata:
   name: flux-kustomization-reader
+  labels:
+    promoter.argoproj.io/webrequestcommitstatus-access: allowed
   annotations:
     kubernetes.io/service-account.name: flux-kustomization-reader
 type: kubernetes.io/service-account-token
