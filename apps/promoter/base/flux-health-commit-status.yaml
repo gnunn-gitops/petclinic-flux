@@ -136,12 +136,23 @@ spec:
               "Flux has not picked up " + shortSha + " yet",
           }
 
-      # Carry-forward: this runs every reconcile, including ones with no HTTP
-      # response, so Response must be guarded. On the very first reconcile Phase
-      # is "", which the controller reads as pending.
+      # Carry-forward: this runs every reconcile, including ones where the
+      # trigger below declined to make a request, so Response must be guarded.
+      # On the very first reconcile Phase is "", which the controller reads as
+      # pending.
+      #
+      # The carried-forward phase is only reused while the stored SuccessOutput
+      # belongs to the SHA that is currently active. Without that guard, the
+      # moment a promotion merges a new commit onto the environment branch this
+      # status would keep reporting the previous commit's success until the
+      # trigger fired, and the next environment could promote on it.
       expression: |
         if Response == nil {
-          { "phase": Phase }
+          if (SuccessOutput != nil && (SuccessOutput.sha ?? "") == Variables.activeSha) {
+            { "phase": Phase }
+          } else {
+            { "phase": "pending" }
+          }
         } else {
           if Variables.ok {
             { "phase": "success" }
@@ -156,17 +167,24 @@ spec:
 
       # Keeps the description stable across carry-forward reconciles, and leaves
       # the raw comparison inputs in status for debugging.
+      #
+      # sha, ok and specGeneration are not just debugging output: they are the
+      # memory the trigger below reads to decide whether this commit still needs
+      # a request. If the active SHA moves on, the stored output is discarded
+      # (fresh) rather than carried, so the trigger sees a mismatch and fires.
       output:
         expression: |
           let fresh = {
             sha: Variables.activeSha,
             summary: "Waiting for Flux to apply this commit",
+            specGeneration: WebRequestCommitStatus.Generation,
             ok: false
           };
           Response == nil
             ? ((SuccessOutput != nil && (SuccessOutput.sha ?? "") == Variables.activeSha) ? SuccessOutput : fresh)
             : {
                 sha: Variables.activeSha,
+                specGeneration: WebRequestCommitStatus.Generation,
                 kustomization: Variables.kustomization,
                 summary: Variables.summary,
                 expectedRevision: Variables.want,
@@ -183,8 +201,66 @@ spec:
 
   mode:
     context: environments
-    # Polling rather than trigger: an active commit status has to keep watching,
-    # because the deployment can go unhealthy after it was first verified. The
-    # proposed-SHA polling short-circuit does not apply to reportOn: active.
-    polling:
-      interval: 30s
+    # Trigger rather than polling: only call the Kubernetes API when the answer
+    # could actually have changed. Once Flux has applied the active SHA and
+    # reported it healthy, the stored SuccessOutput is carried forward verbatim
+    # instead of re-queried, so a settled environment costs nothing.
+    #
+    # TRADE-OFF, read before changing anything above: this gate no longer
+    # notices a deployment that goes unhealthy *after* it was first verified.
+    # It reports on the last verdict for the active SHA until that SHA changes.
+    # If you want continuous drift detection from this status, go back to
+    # polling with `polling: {interval: 30s}` and drop this trigger block.
+    trigger:
+      requeueDuration: 30s
+      when:
+        # A request is made when any of these is true:
+        #
+        #   shaChanged    the active hydrated SHA is not the one the stored
+        #                 result was computed for — a promotion merged, so Flux
+        #                 has new work and must be re-checked.
+        #   notSettled    the stored result for this SHA is not a success yet.
+        #                 This is what keeps the gate alive while Flux is still
+        #                 fetching/applying, and what lets a failed or
+        #                 still-progressing reconcile recover on its own.
+        #                 Without it the first pending answer would be frozen in
+        #                 forever and the promotion would deadlock.
+        #   specChanged   this WebRequestCommitStatus was edited since the stored
+        #                 result was produced, so the result was computed by
+        #                 expressions that no longer exist. Re-evaluate rather
+        #                 than trust it.
+        #
+        # activeSha == "" means there is nothing to check yet (no hydrated
+        # commit on the environment branch), so no request is made at all.
+        variables:
+          expression: |
+            let env = find(PromotionStrategy.Status.Environments, {.Branch == Branch});
+            let activeSha = env?.Active?.Hydrated?.Sha ?? "";
+            let evaluatedSha = SuccessOutput != nil ? (SuccessOutput.sha ?? "") : "";
+            let evaluatedGeneration = SuccessOutput != nil ? int(SuccessOutput.specGeneration ?? 0) : 0;
+
+            let shaChanged = evaluatedSha != activeSha;
+            let notSettled = SuccessOutput != nil ? !(SuccessOutput.ok ?? false) : true;
+            let specChanged = evaluatedGeneration != int(WebRequestCommitStatus.Generation);
+
+            let doTrigger = activeSha != "" && (shaChanged || notSettled || specChanged);
+            {
+              activeSha: activeSha,
+              evaluatedSha: evaluatedSha,
+              shaChanged: shaChanged,
+              notSettled: notSettled,
+              specChanged: specChanged,
+              doTrigger: doTrigger
+            }
+        expression: |
+          Variables.doTrigger
+        output:
+          expression: |
+            {
+              activeSha: Variables.activeSha,
+              evaluatedSha: Variables.evaluatedSha,
+              shaChanged: Variables.shaChanged,
+              notSettled: Variables.notSettled,
+              specChanged: Variables.specChanged,
+              doTrigger: Variables.doTrigger
+            }
