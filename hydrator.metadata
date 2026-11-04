@@ -1,8 +1,8 @@
 {
-  "drySha": "35abfb015cc7664f4abc044d60109a30836e7e4a",
+  "drySha": "b74914c1d0e025f8a5ec03f55f83ed15acff194d",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
-  "author": "gnunn1 <gnunn@redhat.com>",
-  "date": "2026-11-04T07:58:48-07:00",
-  "subject": "Update to new image\n",
+  "author": "Gerald Nunn <gnunn1@users.noreply.github.com>",
+  "date": "2026-11-04T13:05:12-07:00",
+  "subject": "Update kustomization.yaml\n",
   "body": "\n"
 }
