@@ -1,8 +1,8 @@
 {
-  "drySha": "f06cbe7501827e7f2340c503319ebafec645ba8f",
+  "drySha": "35abfb015cc7664f4abc044d60109a30836e7e4a",
   "repoURL": "https://github.com/gnunn-gitops/petclinic-flux",
-  "author": "Gerald Nunn <gnunn1@users.noreply.github.com>",
-  "date": "2026-11-03T14:01:58-07:00",
-  "subject": "Update image tag for quarkus-petclinic\n",
+  "author": "gnunn1 <gnunn@redhat.com>",
+  "date": "2026-11-04T07:58:48-07:00",
+  "subject": "Update to new image\n",
   "body": "\n"
 }
